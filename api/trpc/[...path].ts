@@ -195,14 +195,14 @@ async function importYouTubePlaylist(playlistId: string): Promise<VideoResult[]>
   return results;
 }
 
-function sendJson(res: ServerResponse, statusCode: number, body: unknown) {
+function sendJson(res: ServerResponse, statusCode: number, body: unknown, batch = false) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  res.end(JSON.stringify(body));
+  res.end(JSON.stringify(batch ? [body] : body));
 }
 
 function trpcSuccess(data: unknown) {
@@ -256,6 +256,7 @@ export default async function handler(
     requestUrl.pathname.split("/api/trpc/")[1] ??
     requestUrl.searchParams.get("path") ??
     "";
+  const batch = requestUrl.searchParams.get("batch") === "1";
 
   try {
     if (req.method === "OPTIONS") {
@@ -267,7 +268,7 @@ export default async function handler(
       return;
     }
     if (path === "system.health") {
-      sendJson(res, 200, trpcSuccess({ ok: true }));
+      sendJson(res, 200, trpcSuccess({ ok: true }), batch);
       return;
     }
 
@@ -283,15 +284,15 @@ export default async function handler(
       const playlistId =
         typeof input.playlistId === "string" ? input.playlistId.trim() : "";
       if (!playlistId) {
-        sendJson(res, 400, trpcError(path, "Playlist ID is required"));
+        sendJson(res, 400, trpcError(path, "Playlist ID is required"), batch);
         return;
       }
-      sendJson(res, 200, trpcSuccess(await importYouTubePlaylist(playlistId)));
+      sendJson(res, 200, trpcSuccess(await importYouTubePlaylist(playlistId)), batch);
       return;
     }
 
     if (path !== "youtube.search") {
-      sendJson(res, 404, trpcError(path, "Unknown API procedure"));
+      sendJson(res, 404, trpcError(path, "Unknown API procedure"), batch);
       return;
     }
 
@@ -310,18 +311,19 @@ export default async function handler(
         ? Math.min(Math.max(Math.trunc(input.limit), 1), 20)
         : 8;
     if (!query) {
-      sendJson(res, 400, trpcError(path, "Search query is required"));
+      sendJson(res, 400, trpcError(path, "Search query is required"), batch);
       return;
     }
 
     const results = await searchYouTube(query, limit);
-    sendJson(res, 200, trpcSuccess(results));
+    sendJson(res, 200, trpcSuccess(results), batch);
   } catch (error) {
     console.error("[Vercel API] Request failed", error);
     sendJson(
       res,
       500,
       trpcError(path, error instanceof Error ? error.message : "Request failed"),
+      batch,
     );
   }
 }
