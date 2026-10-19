@@ -235,6 +235,10 @@ function isBatchInput(value: unknown): boolean {
   return Boolean(value && typeof value === "object" && "0" in value);
 }
 
+function getParsedBody(req: IncomingMessage): unknown {
+  return (req as IncomingMessage & { body?: unknown }).body;
+}
+
 function extractInput(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object") return {};
   const object = value as Record<string, unknown>;
@@ -281,8 +285,12 @@ export default async function handler(
         ? JSON.parse(requestUrl.searchParams.get("input") as string)
         : {};
       if (req.method === "POST") {
-        const body = await readBody(req);
-        if (body) rawInput = JSON.parse(body);
+        const parsedBody = getParsedBody(req);
+        if (parsedBody !== undefined) rawInput = parsedBody;
+        else {
+          const body = await readBody(req);
+          if (body) rawInput = JSON.parse(body);
+        }
       }
       batch = batch || isBatchInput(rawInput);
       const input = extractInput(rawInput);
@@ -305,8 +313,12 @@ export default async function handler(
       ? JSON.parse(requestUrl.searchParams.get("input") as string)
       : {};
     if (req.method === "POST") {
-      const body = await readBody(req);
-      if (body) rawInput = JSON.parse(body);
+      const parsedBody = getParsedBody(req);
+      if (parsedBody !== undefined) rawInput = parsedBody;
+      else {
+        const body = await readBody(req);
+        if (body) rawInput = JSON.parse(body);
+      }
     }
     batch = batch || isBatchInput(rawInput);
 
