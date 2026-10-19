@@ -231,6 +231,10 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+function isBatchInput(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && "0" in value);
+}
+
 function extractInput(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object") return {};
   const object = value as Record<string, unknown>;
@@ -256,7 +260,7 @@ export default async function handler(
     requestUrl.pathname.split("/api/trpc/")[1] ??
     requestUrl.searchParams.get("path") ??
     "";
-  const batch = requestUrl.searchParams.get("batch") === "1";
+  let batch = requestUrl.searchParams.get("batch") === "1";
 
   try {
     if (req.method === "OPTIONS") {
@@ -280,6 +284,7 @@ export default async function handler(
         const body = await readBody(req);
         if (body) rawInput = JSON.parse(body);
       }
+      batch = batch || isBatchInput(rawInput);
       const input = extractInput(rawInput);
       const playlistId =
         typeof input.playlistId === "string" ? input.playlistId.trim() : "";
@@ -303,6 +308,7 @@ export default async function handler(
       const body = await readBody(req);
       if (body) rawInput = JSON.parse(body);
     }
+    batch = batch || isBatchInput(rawInput);
 
     const input = extractInput(rawInput);
     const query = typeof input.query === "string" ? input.query.trim() : "";
